@@ -63,6 +63,19 @@ class PrinterProbe:
     def get_offsets(self):
         return self.x_offset, self.y_offset, self.z_offset
     def _probe(self, speed):
+        pheater = self.printer.lookup_object('heater')
+        try:
+            heater_bed = pheater.lookup_heater("heater_bed")
+        except self.printer.config_error as e:
+            heater_bed = None
+
+        if heater_bed is not None and self.disable_bed_heater:
+            heated_bed_target_temp = heater_bed.target_temp
+            self.gcode.respond_info("Heated bed target temp before probe" +
+                                    " run: %.1f degrees"
+                                    % heated_bed_target_temp)
+            heater_bed.set_temp(0., 0.)
+
         toolhead = self.printer.lookup_object('toolhead')
         homing_state = homing.Homing(self.printer)
         pos = toolhead.get_position()
@@ -81,6 +94,12 @@ class PrinterProbe:
         self.gcode.respond_info("probe at %.3f,%.3f is z=%.6f" % (
             pos[0], pos[1], pos[2]))
         self.gcode.reset_last_position()
+
+        if heater_bed is not None and self.disable_bed_heater:
+            heater_bed.set_temp(0., heated_bed_target_temp)
+            self.gcode.respond_info("Heater bed reset to %.1f degrees"
+                                    % heated_bed_target_temp)
+
         return pos[:3]
     def _move(self, coord, speed):
         toolhead = self.printer.lookup_object('toolhead')
